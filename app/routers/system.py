@@ -39,10 +39,12 @@ async def get_system_status():
         gpu_info = check_gpu_available()
         selection_info = get_gpu_selection_info()
 
+        platform_name = "GPU" if gpu_info["available"] else "CPU"
+
         return {
             "gpu": gpu_info,
             "selection": selection_info,
-            "platform": "AMD ROCm" if gpu_info["available"] else "CPU Only"
+            "platform": platform_name
         }
     except Exception as e:
         import traceback
