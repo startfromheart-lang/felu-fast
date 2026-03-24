@@ -1,0 +1,13 @@
+# PyTorch ROCm版本安装文件
+# 使用官方PyTorch源安装ROCm版本
+
+# PyTorch 2.4.0 with ROCm 7.1 (Python 3.12兼容)
+torch==2.4.0+rocm7.1
+torchvision==0.19.0+rocm7.1
+
+# 或者使用更新的版本（如果可用）
+# torch==2.5.0+rocm7.1
+# torchvision==0.20.0+rocm7.1
+
+# 安装命令:
+# pip install torch==2.4.0+rocm7.1 torchvision==0.19.0+rocm7.1 --index-url https://download.pytorch.org/whl/rocm7.1
