@@ -1,0 +1,36 @@
+
+torch>=2.10.0
+torchvision>=0.25.0
+torchaudio>=2.10.0
+
+# Core dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.9
+websockets>=13.1
+pydantic>=2.9.2
+pydantic-settings>=2.5.2
+
+timm>=1.0.0
+
+# Image processing
+Pillow>=11.0.0
+opencv-python>=4.10.0.84
+imageio>=2.36.0
+
+# Data processing
+numpy>=2.0.0
+pandas>=2.2.3
+scikit-learn>=1.5.2
+
+# Visualization
+matplotlib>=3.9.2
+
+# Utilities
+python-dotenv>=1.0.1
+aiofiles>=24.1.0
+tqdm>=4.66.5
+
+# Deep Learning - fastai
+fastai>=2.7.18
+IPython>=8.0.0
