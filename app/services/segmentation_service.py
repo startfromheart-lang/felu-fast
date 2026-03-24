@@ -829,5 +829,22 @@ training_progress = {
     }
 }
 
+# 全局任务状态
+task_status = {
+    "segmentation": {
+        "training": False,
+        "testing": False,
+        "predicting": False
+    }
+}
+
+def is_task_running(action: str) -> bool:
+    """检查指定任务是否正在运行"""
+    return task_status["segmentation"].get(action, False)
+
+def set_task_status(action: str, running: bool):
+    """设置任务状态"""
+    task_status["segmentation"][action] = running
+
 # 全局服务实例
 segmentation_service = SegmentationService()

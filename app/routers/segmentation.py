@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 from typing import Optional
 
-from app.services.segmentation_service import segmentation_service
+from app.services.segmentation_service import segmentation_service, is_task_running, set_task_status
 from app.core.config import settings
 
 router = APIRouter()
@@ -26,8 +26,17 @@ async def train_segmentation(
 ):
     """训练分割模型"""
     try:
+        if is_task_running("training"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "训练任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("training", True)
+        
         # 验证路径
         if not Path(train_path).exists():
+            set_task_status("training", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"训练数据路径不存在: {train_path}"}
@@ -58,10 +67,13 @@ async def train_segmentation(
         return JSONResponse(content=deep_clean_for_json(result))
 
     except Exception as e:
+        set_task_status("training", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("training", False)
 
 
 @router.post("/predict")
@@ -72,6 +84,14 @@ async def predict_segmentation(
 ):
     """图像分割预测"""
     try:
+        if is_task_running("predicting"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "分割任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("predicting", True)
+        
         # 保存上传的文件
         upload_path = settings.UPLOAD_DIR / file.filename
         with upload_path.open("wb") as buffer:
@@ -90,10 +110,13 @@ async def predict_segmentation(
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
+        set_task_status("predicting", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("predicting", False)
 
 
 @router.post("/test")
@@ -104,8 +127,17 @@ async def test_segmentation(
 ):
     """测试分割模型"""
     try:
+        if is_task_running("testing"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "测试任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("testing", True)
+        
         # 验证路径
         if not Path(test_path).exists():
+            set_task_status("testing", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"测试数据路径不存在: {test_path}"}
@@ -131,10 +163,13 @@ async def test_segmentation(
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
+        set_task_status("testing", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("testing", False)
 
 
 @router.get("/download-result/{filename}")

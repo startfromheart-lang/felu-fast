@@ -1,6 +1,53 @@
 // API 基础路径
 const API_BASE = '/api';
 
+// 任务状态管理 - 防止重复点击
+const taskStatus = {
+    classification: {
+        training: false,
+        testing: false,
+        predicting: false
+    },
+    segmentation: {
+        training: false,
+        testing: false,
+        predicting: false
+    }
+};
+
+// 检查任务是否正在运行
+function isTaskRunning(type, action) {
+    return taskStatus[type] && taskStatus[type][action];
+}
+
+// 设置任务状态
+function setTaskStatus(type, action, running) {
+    if (taskStatus[type]) {
+        taskStatus[type][action] = running;
+    }
+}
+
+// 禁用按钮
+function disableButton(buttonId) {
+    const btn = document.getElementById(buttonId);
+    if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>处理中...';
+    }
+}
+
+// 启用按钮
+function enableButton(buttonId) {
+    const btn = document.getElementById(buttonId);
+    if (btn) {
+        btn.disabled = false;
+        if (btn.dataset.originalText) {
+            btn.innerHTML = btn.dataset.originalText;
+        }
+    }
+}
+
 // 页面切换
 function showPage(page) {
     document.querySelectorAll('[id^="page-"]').forEach(el => el.classList.add('hidden'));
@@ -379,6 +426,11 @@ function handleImageSelect(input, previewId, imgId) {
 
 // 图像分类
 async function classifyImage() {
+    if (isTaskRunning('classification', 'predicting')) {
+        alert('分类任务正在进行中，请等待完成');
+        return;
+    }
+    
     const input = document.getElementById('class-image-input');
     const modelSelect = document.getElementById('class-model-select');
     let modelPath = modelSelect.value;
@@ -408,6 +460,8 @@ async function classifyImage() {
         formData.append('checkpoint_path', modelPath);
     }
 
+    setTaskStatus('classification', 'predicting', true);
+    disableButton('btn-classify');
     showLoading('正在进行分类...');
 
     try {
@@ -450,6 +504,9 @@ async function classifyImage() {
         document.getElementById('class-result').innerHTML = `
             <div class="alert alert-danger">分类失败: ${error.message}</div>
         `;
+    } finally {
+        setTaskStatus('classification', 'predicting', false);
+        enableButton('btn-classify');
     }
 }
 
@@ -459,6 +516,11 @@ let classificationTrainingPolling = null;
 let segmentationTrainingPolling = null;
 
 async function trainClassification() {
+    if (isTaskRunning('classification', 'training')) {
+        alert('训练任务正在进行中，请等待完成');
+        return;
+    }
+    
     const trainPath = document.getElementById('class-train-path').value;
     const validPath = document.getElementById('class-valid-path').value;
     const epochs = document.getElementById('class-epochs').value;
@@ -507,6 +569,8 @@ async function trainClassification() {
     console.log('[DEBUG] FormData 完整对象:', formDataEntries);
     console.log('[DEBUG] network_name 值:', formDataEntries['network_name']);
 
+    setTaskStatus('classification', 'training', true);
+    disableButton('btn-class-train');
     document.getElementById('class-train-progress').classList.remove('hidden');
     document.getElementById('class-train-log').innerHTML = '<div class="loader"></div>';
 
@@ -548,6 +612,8 @@ async function trainClassification() {
     } finally {
         // 停止轮询
         stopClassificationProgressPolling();
+        setTaskStatus('classification', 'training', false);
+        enableButton('btn-class-train');
     }
 }
 
@@ -649,6 +715,11 @@ async function updateClassificationProgress() {
 
 // 测试分类模型
 async function testClassification() {
+    if (isTaskRunning('classification', 'testing')) {
+        alert('测试任务正在进行中，请等待完成');
+        return;
+    }
+    
     const testPath = document.getElementById('class-test-path').value;
     const modelPath = document.getElementById('class-test-model').value;
     
@@ -661,6 +732,8 @@ async function testClassification() {
     formData.append('test_path', testPath);
     if (modelPath) formData.append('model_path', modelPath);
     
+    setTaskStatus('classification', 'testing', true);
+    disableButton('btn-class-test');
     document.getElementById('class-test-result').innerHTML = '<div class="loader"></div>';
     
     try {
@@ -738,11 +811,19 @@ async function testClassification() {
         document.getElementById('class-test-result').innerHTML = `
             <div class="alert alert-danger">测试失败: ${error.message}</div>
         `;
+    } finally {
+        setTaskStatus('classification', 'testing', false);
+        enableButton('btn-class-test');
     }
 }
 
 // 图像分割
 async function segmentImage() {
+    if (isTaskRunning('segmentation', 'predicting')) {
+        alert('分割任务正在进行中，请等待完成');
+        return;
+    }
+    
     const input = document.getElementById('seg-image-input');
     const modelSelect = document.getElementById('seg-model-select');
     const overlay = document.getElementById('seg-overlay').checked;
@@ -774,6 +855,8 @@ async function segmentImage() {
     }
     formData.append('return_overlay', overlay);
 
+    setTaskStatus('segmentation', 'predicting', true);
+    disableButton('btn-segment');
     showLoading('正在进行分割...');
 
     try {
@@ -845,11 +928,19 @@ async function segmentImage() {
         document.getElementById('seg-result').innerHTML = `
             <div class="alert alert-danger">分割失败: ${error.message}</div>
         `;
+    } finally {
+        setTaskStatus('segmentation', 'predicting', false);
+        enableButton('btn-segment');
     }
 }
 
 // 训练分割模型
 async function trainSegmentation() {
+    if (isTaskRunning('segmentation', 'training')) {
+        alert('训练任务正在进行中，请等待完成');
+        return;
+    }
+    
     const trainPath = document.getElementById('seg-train-path').value;
     const epochs = document.getElementById('seg-epochs').value;
     const lr = document.getElementById('seg-lr').value;
@@ -869,6 +960,8 @@ async function trainSegmentation() {
     formData.append('model_name', 'resnet34');
     formData.append('pretrained', pretrained);
 
+    setTaskStatus('segmentation', 'training', true);
+    disableButton('btn-seg-train');
     document.getElementById('seg-train-progress').classList.remove('hidden');
     document.getElementById('seg-train-log').innerHTML = '<div class="loader"></div>';
 
@@ -904,6 +997,8 @@ async function trainSegmentation() {
     } finally {
         // 停止轮询
         stopSegmentationProgressPolling();
+        setTaskStatus('segmentation', 'training', false);
+        enableButton('btn-seg-train');
     }
 }
 
@@ -1005,6 +1100,11 @@ async function updateSegmentationProgress() {
 
 // 测试分割模型
 async function testSegmentation() {
+    if (isTaskRunning('segmentation', 'testing')) {
+        alert('测试任务正在进行中，请等待完成');
+        return;
+    }
+    
     const testPath = document.getElementById('seg-test-path').value;
     const modelPath = document.getElementById('seg-test-model').value;
     
@@ -1017,6 +1117,8 @@ async function testSegmentation() {
     formData.append('test_path', testPath);
     if (modelPath) formData.append('model_path', modelPath);
     
+    setTaskStatus('segmentation', 'testing', true);
+    disableButton('btn-seg-test');
     document.getElementById('seg-test-result').innerHTML = '<div class="loader"></div>';
     
     try {
@@ -1088,6 +1190,9 @@ async function testSegmentation() {
         document.getElementById('seg-test-result').innerHTML = `
             <div class="alert alert-danger">测试失败: ${error.message}</div>
         `;
+    } finally {
+        setTaskStatus('segmentation', 'testing', false);
+        enableButton('btn-seg-test');
     }
 }
 
