@@ -9,12 +9,15 @@ import uuid
 
 from app.services.classification_service import classification_service
 from app.core.config import settings
+from app.core.task_lock import task_lock_manager
 
 router = APIRouter()
 
-# 允许的图片扩展名
+TASK_TRAIN = "classification_train"
+TASK_PREDICT = "classification_predict"
+TASK_TEST = "classification_test"
+
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.webp'}
-# 最大上传文件大小 (50MB)
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 
@@ -24,14 +27,19 @@ async def train_classification(
     valid_path: Optional[str] = Form(None),
     epochs: int = Form(10),
     lr: float = Form(1e-3),
-    batch_size: int = Form(2),  # 使用最小批次大小
-    network_name: str = Form("resnet18"),  # 改名为 network_name 避免与 Pydantic 的 model_ 命名空间冲突
+    batch_size: int = Form(2),
+    network_name: str = Form("resnet18"),
     resume_model: Optional[str] = Form(None),
-    pretrained: bool = Form(False)  # 是否使用预训练模型
+    pretrained: bool = Form(False)
 ):
     """训练分类模型"""
+    if not task_lock_manager.acquire(TASK_TRAIN, "分类模型训练"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有训练任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 打印调试信息
         print("=" * 60)
         print("[BACKEND DEBUG] 收到的训练请求参数:")
         print(f"  network_name: {network_name} (type: {type(network_name).__name__})")
@@ -43,21 +51,18 @@ async def train_classification(
         print(f"  valid_path: {valid_path}")
         print("=" * 60)
 
-        # 验证路径
         if not Path(train_path).exists():
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"训练数据路径不存在: {train_path}"}
             )
 
-        # 如果提供了验证路径，也进行验证
         if valid_path and not Path(valid_path).exists():
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"验证数据路径不存在: {valid_path}"}
             )
 
-        # 训练任务（使用 run_in_threadpool 避免阻塞事件循环）
         from fastapi.concurrency import run_in_threadpool
 
         result = await run_in_threadpool(
@@ -72,7 +77,6 @@ async def train_classification(
             pretrained=pretrained
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
 
     except Exception as e:
@@ -80,23 +84,29 @@ async def train_classification(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_TRAIN)
 
 
 @router.post("/predict")
 async def predict_classification(
     file: UploadFile = File(...),
-    checkpoint_path: Optional[str] = Form(None)  # 改名为 checkpoint_path 避免与 Pydantic 的 model_ 命名空间冲突
+    checkpoint_path: Optional[str] = Form(None)
 ):
     """图像分类预测"""
+    if not task_lock_manager.acquire(TASK_PREDICT, "分类预测"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有预测任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 验证文件名存在性
         if not file.filename:
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "文件名不能为空"}
             )
 
-        # 验证文件扩展名
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
             return JSONResponse(
@@ -104,15 +114,12 @@ async def predict_classification(
                 content={"success": False, "error": f"不支持的文件类型: {file_ext}"}
             )
 
-        # 确保上传目录存在
         settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-        # 生成安全的文件名（防止路径遍历攻击）
         safe_filename = f"{uuid.uuid4().hex}{file_ext}"
         upload_path = settings.UPLOAD_DIR / safe_filename
 
-        # 保存上传的文件（使用流式写入，支持大文件）
-        chunk_size = 8192  # 8KB chunks
+        chunk_size = 8192
         total_size = 0
 
         with upload_path.open("wb") as buffer:
@@ -122,9 +129,7 @@ async def predict_classification(
                     break
                 total_size += len(chunk)
 
-                # 实时检查文件大小限制
                 if total_size > MAX_UPLOAD_SIZE:
-                    # 清理已写入的部分文件
                     buffer.close()
                     upload_path.unlink(missing_ok=True)
                     return JSONResponse(
@@ -134,15 +139,13 @@ async def predict_classification(
 
                 buffer.write(chunk)
 
-        # 预测（使用 run_in_threadpool 避免阻塞事件循环）
         from fastapi.concurrency import run_in_threadpool
         result = await run_in_threadpool(
             classification_service.predict,
             image_path=str(upload_path),
-            model_path=checkpoint_path  # 内部映射回 model_path
+            model_path=checkpoint_path
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
@@ -150,31 +153,36 @@ async def predict_classification(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_PREDICT)
 
 
 @router.post("/test")
 async def test_classification(
     test_path: str = Form(...),
-    checkpoint_path: Optional[str] = Form(None)  # 改名为 checkpoint_path 避免与 Pydantic 的 model_ 命名空间冲突
+    checkpoint_path: Optional[str] = Form(None)
 ):
     """测试分类模型"""
+    if not task_lock_manager.acquire(TASK_TEST, "分类模型测试"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有测试任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 验证路径
         if not Path(test_path).exists():
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"测试数据路径不存在: {test_path}"}
             )
 
-        # 启动测试任务（使用 run_in_threadpool 避免阻塞事件循环）
         from fastapi.concurrency import run_in_threadpool
         result = await run_in_threadpool(
             classification_service.test,
             test_path=test_path,
-            model_path=checkpoint_path  # 内部映射回 model_path
+            model_path=checkpoint_path
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
@@ -182,6 +190,8 @@ async def test_classification(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_TEST)
 
 
 @router.get("/download-result/{filename}")

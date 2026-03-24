@@ -9,8 +9,13 @@ from typing import Optional
 
 from app.services.segmentation_service import segmentation_service
 from app.core.config import settings
+from app.core.task_lock import task_lock_manager
 
 router = APIRouter()
+
+TASK_TRAIN = "segmentation_train"
+TASK_PREDICT = "segmentation_predict"
+TASK_TEST = "segmentation_test"
 
 
 @router.post("/train")
@@ -19,21 +24,25 @@ async def train_segmentation(
     train_path: str = Form(...),
     epochs: int = Form(10),
     lr: float = Form(1e-3),
-    batch_size: int = Form(1),  # 使用最小批次大小
-    network_name: str = Form("resnet34"),  # 改名为 network_name 避免与 Pydantic 的 model_ 命名空间冲突
+    batch_size: int = Form(1),
+    network_name: str = Form("resnet34"),
     resume_model: Optional[str] = Form(None),
-    pretrained: bool = Form(False)  # 是否使用预训练模型
+    pretrained: bool = Form(False)
 ):
     """训练分割模型"""
+    if not task_lock_manager.acquire(TASK_TRAIN, "分割模型训练"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有训练任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 验证路径
         if not Path(train_path).exists():
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"训练数据路径不存在: {train_path}"}
             )
 
-        # 创建进度回调
         from fastapi.concurrency import run_in_threadpool
 
         progress_data = []
@@ -41,20 +50,18 @@ async def train_segmentation(
         def progress_callback(data):
             progress_data.append(data)
 
-        # 启动训练任务（使用 run_in_threadpool 避免阻塞事件循环）
         result = await run_in_threadpool(
             segmentation_service.train,
             train_path=train_path,
             epochs=epochs,
             lr=lr,
             batch_size=batch_size,
-            model_name=network_name,  # 内部映射回 model_name
+            model_name=network_name,
             resume_model=resume_model,
             pretrained=pretrained,
             progress_callback=progress_callback
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
 
     except Exception as e:
@@ -62,31 +69,36 @@ async def train_segmentation(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_TRAIN)
 
 
 @router.post("/predict")
 async def predict_segmentation(
     file: UploadFile = File(...),
-    checkpoint_path: Optional[str] = Form(None),  # 改名为 checkpoint_path 避免与 Pydantic 的 model_ 命名空间冲突
+    checkpoint_path: Optional[str] = Form(None),
     return_overlay: bool = Form(True)
 ):
     """图像分割预测"""
+    if not task_lock_manager.acquire(TASK_PREDICT, "分割预测"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有预测任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 保存上传的文件
         upload_path = settings.UPLOAD_DIR / file.filename
         with upload_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 预测（使用 run_in_threadpool 避免阻塞事件循环）
         from fastapi.concurrency import run_in_threadpool
         result = await run_in_threadpool(
             segmentation_service.predict,
             image_path=str(upload_path),
-            model_path=checkpoint_path,  # 内部映射回 model_path
+            model_path=checkpoint_path,
             return_overlay=return_overlay
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
@@ -94,24 +106,30 @@ async def predict_segmentation(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_PREDICT)
 
 
 @router.post("/test")
 async def test_segmentation(
     background_tasks: BackgroundTasks,
     test_path: str = Form(...),
-    checkpoint_path: Optional[str] = Form(None)  # 改名为 checkpoint_path 避免与 Pydantic 的 model_ 命名空间冲突
+    checkpoint_path: Optional[str] = Form(None)
 ):
     """测试分割模型"""
+    if not task_lock_manager.acquire(TASK_TEST, "分割模型测试"):
+        return JSONResponse(
+            status_code=429,
+            content={"success": False, "error": "当前有测试任务正在执行，请等待完成后再试"}
+        )
+
     try:
-        # 验证路径
         if not Path(test_path).exists():
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"测试数据路径不存在: {test_path}"}
             )
 
-        # 创建进度回调
         from fastapi.concurrency import run_in_threadpool
 
         progress_data = []
@@ -119,15 +137,13 @@ async def test_segmentation(
         def progress_callback(data):
             progress_data.append(data)
 
-        # 启动测试任务（使用 run_in_threadpool 避免阻塞事件循环）
         result = await run_in_threadpool(
             segmentation_service.test,
             test_path=test_path,
-            model_path=checkpoint_path,  # 内部映射回 model_path
+            model_path=checkpoint_path,
             progress_callback=progress_callback
         )
 
-        # 深度清理确保可序列化
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
@@ -135,6 +151,8 @@ async def test_segmentation(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        task_lock_manager.release(TASK_TEST)
 
 
 @router.get("/download-result/{filename}")
