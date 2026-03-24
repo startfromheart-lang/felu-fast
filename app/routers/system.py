@@ -42,7 +42,7 @@ async def get_system_status():
         return {
             "gpu": gpu_info,
             "selection": selection_info,
-            "platform": "AMD ROCm" if gpu_info["available"] else "CPU Only"
+            "platform": "GPU" if gpu_info["available"] else "CPU"
         }
     except Exception as e:
         import traceback

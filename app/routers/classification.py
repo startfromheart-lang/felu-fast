@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 import uuid
 
-from app.services.classification_service import classification_service
+from app.services.classification_service import classification_service, is_task_running, set_task_status
 from app.core.config import settings
 
 router = APIRouter()
@@ -31,6 +31,14 @@ async def train_classification(
 ):
     """训练分类模型"""
     try:
+        if is_task_running("training"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "训练任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("training", True)
+        
         # 打印调试信息
         print("=" * 60)
         print("[BACKEND DEBUG] 收到的训练请求参数:")
@@ -45,6 +53,7 @@ async def train_classification(
 
         # 验证路径
         if not Path(train_path).exists():
+            set_task_status("training", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"训练数据路径不存在: {train_path}"}
@@ -52,6 +61,7 @@ async def train_classification(
 
         # 如果提供了验证路径，也进行验证
         if valid_path and not Path(valid_path).exists():
+            set_task_status("training", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"验证数据路径不存在: {valid_path}"}
@@ -76,10 +86,13 @@ async def train_classification(
         return JSONResponse(content=deep_clean_for_json(result))
 
     except Exception as e:
+        set_task_status("training", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("training", False)
 
 
 @router.post("/predict")
@@ -89,8 +102,17 @@ async def predict_classification(
 ):
     """图像分类预测"""
     try:
+        if is_task_running("predicting"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "分类任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("predicting", True)
+        
         # 验证文件名存在性
         if not file.filename:
+            set_task_status("predicting", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "文件名不能为空"}
@@ -99,6 +121,7 @@ async def predict_classification(
         # 验证文件扩展名
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            set_task_status("predicting", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"不支持的文件类型: {file_ext}"}
@@ -127,6 +150,7 @@ async def predict_classification(
                     # 清理已写入的部分文件
                     buffer.close()
                     upload_path.unlink(missing_ok=True)
+                    set_task_status("predicting", False)
                     return JSONResponse(
                         status_code=413,
                         content={"success": False, "error": f"文件过大，最大允许 {MAX_UPLOAD_SIZE // 1024 // 1024} MB"}
@@ -146,10 +170,13 @@ async def predict_classification(
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
+        set_task_status("predicting", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("predicting", False)
 
 
 @router.post("/test")
@@ -159,8 +186,17 @@ async def test_classification(
 ):
     """测试分类模型"""
     try:
+        if is_task_running("testing"):
+            return JSONResponse(
+                status_code=409,
+                content={"success": False, "error": "测试任务正在进行中，请等待完成后再提交新任务"}
+            )
+        
+        set_task_status("testing", True)
+        
         # 验证路径
         if not Path(test_path).exists():
+            set_task_status("testing", False)
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": f"测试数据路径不存在: {test_path}"}
@@ -178,10 +214,13 @@ async def test_classification(
         return JSONResponse(content=deep_clean_for_json(result))
         
     except Exception as e:
+        set_task_status("testing", False)
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    finally:
+        set_task_status("testing", False)
 
 
 @router.get("/download-result/{filename}")
