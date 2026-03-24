@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  aihoo-fast-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aihoo-fast-service:latest
+    container_name: aihoo-tongue-diagnosis
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./results:/app/results
+      - ./uploads:/app/uploads
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - HOST=0.0.0.0
+      - PORT=8001
+      - DEBUG=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    shm_size: '16gb'
+    stdin_open: true
+    tty: true
+
+networks:
+  default:
+    name: aihoo-network
