@@ -1,7 +1,10 @@
 
-torch>=2.10.0
-torchvision>=0.25.0
-torchaudio>=2.10.0
+# PyTorch with CUDA support (for NVIDIA GPUs)
+# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# For CUDA 12.8 (RTX 50 series and newer)
+torch>=2.10.0+cu128
+torchvision>=0.25.0+cu128
+torchaudio>=2.10.0+cu128
 
 # Core dependencies
 fastapi>=0.115.0
