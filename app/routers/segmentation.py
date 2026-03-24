@@ -26,6 +26,14 @@ async def train_segmentation(
 ):
     """训练分割模型"""
     try:
+        # 检查是否已有任务在进行
+        from app.services.segmentation_service import training_progress
+        if training_progress["segmentation"]["is_training"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "已有分割训练任务正在进行，请等待完成后再试"}
+            )
+
         # 验证路径
         if not Path(train_path).exists():
             return JSONResponse(
@@ -72,6 +80,9 @@ async def predict_segmentation(
 ):
     """图像分割预测"""
     try:
+        # 训练期间可以进行预测，不阻止
+        # 这样用户可以同时使用已训练好的模型进行推理，不影响新模型的训练
+
         # 保存上传的文件
         upload_path = settings.UPLOAD_DIR / file.filename
         with upload_path.open("wb") as buffer:
@@ -104,6 +115,9 @@ async def test_segmentation(
 ):
     """测试分割模型"""
     try:
+        # 训练期间可以进行测试，不阻止
+        # 这样用户可以对已有的模型进行测试评估
+
         # 验证路径
         if not Path(test_path).exists():
             return JSONResponse(

@@ -31,6 +31,14 @@ async def train_classification(
 ):
     """训练分类模型"""
     try:
+        # 检查是否已有任务在进行
+        from app.services.classification_service import training_progress
+        if training_progress["classification"]["is_training"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "已有分类训练任务正在进行，请等待完成后再试"}
+            )
+
         # 打印调试信息
         print("=" * 60)
         print("[BACKEND DEBUG] 收到的训练请求参数:")
@@ -89,6 +97,9 @@ async def predict_classification(
 ):
     """图像分类预测"""
     try:
+        # 训练期间可以进行预测，不阻止
+        # 这样用户可以同时使用已训练好的模型进行推理，不影响新模型的训练
+
         # 验证文件名存在性
         if not file.filename:
             return JSONResponse(
@@ -159,6 +170,9 @@ async def test_classification(
 ):
     """测试分类模型"""
     try:
+        # 训练期间可以进行测试，不阻止
+        # 这样用户可以对已有的模型进行测试评估
+
         # 验证路径
         if not Path(test_path).exists():
             return JSONResponse(

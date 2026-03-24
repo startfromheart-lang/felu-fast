@@ -39,10 +39,12 @@ async def get_system_status():
         gpu_info = check_gpu_available()
         selection_info = get_gpu_selection_info()
 
+        # 平台显示：GPU（无论是NVIDIA还是AMD）或CPU
+        platform = "GPU" if gpu_info["available"] else "CPU"
         return {
             "gpu": gpu_info,
             "selection": selection_info,
-            "platform": "AMD ROCm" if gpu_info["available"] else "CPU Only"
+            "platform": platform
         }
     except Exception as e:
         import traceback
@@ -62,7 +64,7 @@ async def get_system_status():
                 "device": "cpu",
                 "message": f"GPU检测失败: {str(e)}"
             },
-            "platform": "CPU Only"
+            "platform": "CPU"
         }
 
 

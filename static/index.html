@@ -101,6 +101,28 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .btn:disabled, .btn.disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .spinner-border {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 0.125em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spinner-border .75s linear infinite;
+        }
+        @keyframes spinner-border {
+            to { transform: rotate(360deg); }
+        }
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+            border-width: 0.125em;
+        }
     </style>
 </head>
 <body>
@@ -222,7 +244,7 @@
                                         <option value="">使用最新模型</option>
                                     </select>
                                 </div>
-                                <button class="btn btn-primary" onclick="classifyImage()">
+                                <button id="class-infer-btn" class="btn btn-primary" onclick="classifyImage()">
                                     <i class="bi bi-play"></i> 开始分类
                                 </button>
                                 <div id="class-result" class="mt-3"></div>
@@ -276,7 +298,7 @@
                                         推荐选择"不使用"以避免网络超时问题
                                     </small>
                                 </div>
-                                <button class="btn btn-primary" onclick="trainClassification()">
+                                <button id="class-train-btn" class="btn btn-primary" onclick="trainClassification()">
                                     <i class="bi bi-play"></i> 开始训练
                                 </button>
                             </div>
@@ -307,7 +329,7 @@
                                 <option value="">使用最新模型</option>
                             </select>
                         </div>
-                        <button class="btn btn-primary" onclick="testClassification()">
+                        <button id="class-test-btn" class="btn btn-primary" onclick="testClassification()">
                             <i class="bi bi-play"></i> 开始测试
                         </button>
                         <div id="class-test-result" class="mt-3"></div>
@@ -365,7 +387,7 @@
                                     <input class="form-check-input" type="checkbox" id="seg-overlay" checked>
                                     <label class="form-check-label">生成叠加图</label>
                                 </div>
-                                <button class="btn btn-success" onclick="segmentImage()">
+                                <button id="seg-infer-btn" class="btn btn-success" onclick="segmentImage()">
                                     <i class="bi bi-play"></i> 开始分割
                                 </button>
                                 <div id="seg-result" class="mt-3"></div>
@@ -408,7 +430,7 @@
                                         推荐选择"不使用"以避免网络超时问题
                                     </small>
                                 </div>
-                                <button class="btn btn-success" onclick="trainSegmentation()">
+                                <button id="seg-train-btn" class="btn btn-success" onclick="trainSegmentation()">
                                     <i class="bi bi-play"></i> 开始训练
                                 </button>
                             </div>
@@ -439,7 +461,7 @@
                                 <option value="">使用最新模型</option>
                             </select>
                         </div>
-                        <button class="btn btn-success" onclick="testSegmentation()">
+                        <button id="seg-test-btn" class="btn btn-success" onclick="testSegmentation()">
                             <i class="bi bi-play"></i> 开始测试
                         </button>
                         <div id="seg-test-result" class="mt-3"></div>
